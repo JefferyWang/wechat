@@ -30,6 +30,10 @@ const (
 	secondAuthURL = "https://qyapi.weixin.qq.com/cgi-bin/user/authsucc"
 	// batchInviteURL 邀请成员API地址
 	batchInviteURL = "https://qyapi.weixin.qq.com/cgi-bin/batch/invite"
+	// getJoinQRCodeURL 获取加入企业二维码API地址
+	getJoinQRCodeURL = "https://qyapi.weixin.qq.com/cgi-bin/corp/get_join_qrcode"
+	// getActiveStatURL 获取企业活跃成员数
+	getActiveStatURL = "https://qyapi.weixin.qq.com/cgi-bin/user/get_active_stat"
 )
 
 // Attr 扩展属性
@@ -467,6 +471,77 @@ func (contact *Contact) Invite(params InviteParams) (result InviteResp, err erro
 	if result.ErrCode != 0 {
 		err = fmt.Errorf("batch invite error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
 	}
+
+	return
+}
+
+// GetJoinQRCodeResp 获取加入企业二维码返回
+type GetJoinQRCodeResp struct {
+	util.CommonError
+	JoinQRCode string `json:"join_qrcode"`
+}
+
+// GetJoinQRCode 获取加入企业二维码
+// 文档地址：https://work.weixin.qq.com/api/doc/90000/90135/91714
+func (contact *Contact) GetJoinQRCode(sizeType int) (ret string, err error) {
+	accessToken, err := contact.GetAccessToken()
+	if err != nil {
+		return
+	}
+
+	url := fmt.Sprintf("%s?access_token=%s&size_type=%d", getJoinQRCodeURL, accessToken, sizeType)
+	resp, err := util.HTTPGet(url)
+	if err != nil {
+		return
+	}
+
+	var result GetJoinQRCodeResp
+	err = json.Unmarshal(resp, &result)
+	if err != nil {
+		return
+	}
+	if result.ErrCode != 0 {
+		err = fmt.Errorf("get join qrcode error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
+	}
+
+	ret = result.JoinQRCode
+
+	return
+}
+
+// GetActiveStatResp 获取企业活跃成员数返回
+type GetActiveStatResp struct {
+	util.CommonError
+	ActiveCnt int `json:"active_cnt"`
+}
+
+// GetActiveStat 获取企业活跃成员数
+// 文档地址：https://work.weixin.qq.com/api/doc/90000/90135/92714
+func (contact *Contact) GetActiveStat(date string) (activeCnt int, err error) {
+	accessToken, err := contact.GetAccessToken()
+	if err != nil {
+		return
+	}
+
+	url := fmt.Sprintf("%s?access_token=%s", getActiveStatURL, accessToken)
+	body := map[string]string{
+		"date": date,
+	}
+	resp, err := util.PostJSON(url, body)
+	if err != nil {
+		return
+	}
+
+	var result GetActiveStatResp
+	err = json.Unmarshal(resp, &result)
+	if err != nil {
+		return
+	}
+	if result.ErrCode != 0 {
+		err = fmt.Errorf("get active stat error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
+	}
+
+	activeCnt = result.ActiveCnt
 
 	return
 }
