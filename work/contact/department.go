@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/silenceper/wechat/v2/work/job"
+
 	"github.com/silenceper/wechat/v2/util"
 )
 
@@ -16,6 +18,8 @@ const (
 	deleteDepartmentURL = "https://qyapi.weixin.qq.com/cgi-bin/department/delete"
 	// getDepartmentListURL 获取部门列表接口地址
 	getDepartmentListURL = "https://qyapi.weixin.qq.com/cgi-bin/department/list"
+	// batchReplacePartyURL 全量覆盖部门接口地址
+	batchReplacePartyURL = "https://qyapi.weixin.qq.com/cgi-bin/batch/replaceparty"
 )
 
 // Department 部门
@@ -142,6 +146,71 @@ func (contact *Contact) GetDepartmentList(deptID ...int) (result GetDepartmentLi
 	}
 	if result.ErrCode != 0 {
 		err = fmt.Errorf("get department list error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
+	}
+
+	return
+}
+
+// BatchReplaceParty 全量覆盖部门
+// 文档地址：https://work.weixin.qq.com/api/doc/90000/90135/90982
+func (contact *Contact) BatchReplaceParty(params *job.Params) (jobID string, err error) {
+	accessToken, err := contact.GetAccessToken()
+	if err != nil {
+		return
+	}
+
+	url := fmt.Sprintf("%s?access_token=%s", batchReplacePartyURL, accessToken)
+	resp, err := util.PostJSON(url, params)
+	if err != nil {
+		return
+	}
+
+	var result job.Resp
+	err = json.Unmarshal(resp, &result)
+	if err != nil {
+		return
+	}
+	if result.ErrCode != 0 {
+		err = fmt.Errorf("batch replace party error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
+	}
+
+	jobID = result.JobID
+
+	return
+}
+
+// PartyJobResultItem 部门任务结果信息
+type PartyJobResultItem struct {
+	Action  int    `json:"action"`
+	PartyID int    `json:"partyid"`
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+}
+
+// GetPartyJobResultResp 企业部门异步任务结果返回
+type GetPartyJobResultResp struct {
+	util.CommonError
+	Status     int                  `json:"status"`
+	Type       string               `json:"type"`
+	Total      int                  `json:"total"`
+	Percentage int                  `json:"percentage"`
+	Result     []PartyJobResultItem `json:"result"`
+}
+
+// GetPartyJobResult 获取企业部门异步任务结果
+// 文档地址：https://work.weixin.qq.com/api/doc/90000/90135/90983
+func (contact *Contact) GetPartyJobResult(jobID string) (result GetPartyJobResultResp, err error) {
+	resp, err := contact.GetJobResult(jobID)
+	if err != nil {
+		return
+	}
+
+	err = json.Unmarshal(resp, &result)
+	if err != nil {
+		return
+	}
+	if result.ErrCode != 0 {
+		err = fmt.Errorf("get party job result error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
 	}
 
 	return

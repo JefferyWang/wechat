@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/silenceper/wechat/v2/util"
+	"github.com/silenceper/wechat/v2/work/job"
 )
 
 const (
@@ -32,8 +33,12 @@ const (
 	batchInviteURL = "https://qyapi.weixin.qq.com/cgi-bin/batch/invite"
 	// getJoinQRCodeURL 获取加入企业二维码API地址
 	getJoinQRCodeURL = "https://qyapi.weixin.qq.com/cgi-bin/corp/get_join_qrcode"
-	// getActiveStatURL 获取企业活跃成员数
+	// getActiveStatURL 获取企业活跃成员数API地址
 	getActiveStatURL = "https://qyapi.weixin.qq.com/cgi-bin/user/get_active_stat"
+	// batchSyncUserURL 增量更新成员API地址
+	batchSyncUserURL = "https://qyapi.weixin.qq.com/cgi-bin/batch/syncuser"
+	// batchReplaceUserURL 全量覆盖成员API地址
+	batchReplaceUserURL = "https://qyapi.weixin.qq.com/cgi-bin/batch/replaceuser"
 )
 
 // Attr 扩展属性
@@ -542,6 +547,104 @@ func (contact *Contact) GetActiveStat(date string) (activeCnt int, err error) {
 	}
 
 	activeCnt = result.ActiveCnt
+
+	return
+}
+
+// UserJobParams 成员类异步任务参数
+type UserJobParams struct {
+	job.Params
+	ToInvite bool `json:"to_invite"`
+}
+
+// BatchSyncUser 增量更新成员
+// 文档地址：https://work.weixin.qq.com/api/doc/90000/90135/90980
+func (contact *Contact) BatchSyncUser(params *UserJobParams) (jobID string, err error) {
+	accessToken, err := contact.GetAccessToken()
+	if err != nil {
+		return
+	}
+
+	url := fmt.Sprintf("%s?access_token=%s", batchSyncUserURL, accessToken)
+	resp, err := util.PostJSON(url, params)
+	if err != nil {
+		return
+	}
+
+	var result job.Resp
+	err = json.Unmarshal(resp, &result)
+	if err != nil {
+		return
+	}
+	if result.ErrCode != 0 {
+		err = fmt.Errorf("batch sync user error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
+	}
+
+	jobID = result.JobID
+
+	return
+}
+
+// BatchReplaceUser 全量覆盖成员
+// 文档地址：https://work.weixin.qq.com/api/doc/90000/90135/90981
+func (contact *Contact) BatchReplaceUser(params *UserJobParams) (jobID string, err error) {
+	accessToken, err := contact.GetAccessToken()
+	if err != nil {
+		return
+	}
+
+	url := fmt.Sprintf("%s?access_token=%s", batchReplaceUserURL, accessToken)
+	resp, err := util.PostJSON(url, params)
+	if err != nil {
+		return
+	}
+
+	var result job.Resp
+	err = json.Unmarshal(resp, &result)
+	if err != nil {
+		return
+	}
+	if result.ErrCode != 0 {
+		err = fmt.Errorf("batch replace user error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
+	}
+
+	jobID = result.JobID
+
+	return
+}
+
+// UserJobResultItem 用户任务结果信息
+type UserJobResultItem struct {
+	UserID  string `json:"userid"`
+	ErrCode int    `json:"errcode"`
+	ErrMsg  string `json:"errmsg"`
+}
+
+// GetUserJobResultResp 企业成员异步任务结果返回
+type GetUserJobResultResp struct {
+	util.CommonError
+	Status     int                 `json:"status"`
+	Type       string              `json:"type"`
+	Total      int                 `json:"total"`
+	Percentage int                 `json:"percentage"`
+	Result     []UserJobResultItem `json:"result"`
+}
+
+// GetUserJobResult 获取企业成员异步任务结果
+// 文档地址：https://work.weixin.qq.com/api/doc/90000/90135/90983
+func (contact *Contact) GetUserJobResult(jobID string) (result GetUserJobResultResp, err error) {
+	resp, err := contact.GetJobResult(jobID)
+	if err != nil {
+		return
+	}
+
+	err = json.Unmarshal(resp, &result)
+	if err != nil {
+		return
+	}
+	if result.ErrCode != 0 {
+		err = fmt.Errorf("get user job result error, errcode=%d,errmsg=%s", result.ErrCode, result.ErrMsg)
+	}
 
 	return
 }
